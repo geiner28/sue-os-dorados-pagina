@@ -1,0 +1,12 @@
+# Dependencias / sistema
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+
+# Originales de cámara (pesados). En la web usamos assets/nmax/web/
+assets/nmax/*.JPG
+
+# Referencias locales
+js/app.legacy.js
