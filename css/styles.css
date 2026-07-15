@@ -1614,6 +1614,60 @@ code {
   color: var(--ink);
 }
 
+.pago-box,
+.footer-pago {
+  text-align: left;
+  margin: 1rem auto;
+  max-width: 420px;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: rgba(212, 175, 55, 0.06);
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 0.9rem;
+  border-radius: 4px;
+}
+
+.pago-box strong,
+.footer-pago strong {
+  color: var(--gold-light);
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pago-box p,
+.footer-pago p {
+  margin: 0.25rem 0;
+}
+
+.pago-box .pago-destacado,
+.footer-pago .pago-destacado {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.footer-pago {
+  margin: 1.25rem auto 0.75rem;
+}
+
+.pago-box-inline {
+  margin: 0 0 1.25rem;
+  max-width: none;
+}
+
+.footer-pago a {
+  color: var(--gold-light);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer-pago a:hover {
+  text-decoration: underline;
+}
+
 .success-particles {
   pointer-events: none;
   position: fixed;

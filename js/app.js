@@ -26,6 +26,55 @@
 
   const $ = (id) => document.getElementById(id);
 
+  function getWhatsAppWaMe() {
+    return CONFIG.WHATSAPP_WA_ME || '573137343527';
+  }
+
+  function getWhatsAppDisplay() {
+    return CONFIG.WHATSAPP_DISPLAY || '313 734 3527';
+  }
+
+  function getPagoConfig() {
+    return CONFIG.PAGO || {
+      cuentaBancolombia: '58332955789',
+      llave: '@mauricio5796',
+      titular: 'Rifas Doradas',
+    };
+  }
+
+  /** Bloque HTML de medios de pago (siempre visible en footer y al confirmar reserva) */
+  function htmlMediosPago() {
+    const pago = getPagoConfig();
+    const wa = getWhatsAppWaMe();
+    const waDisplay = getWhatsAppDisplay();
+    return `
+      <strong>Cómo pagar · Rifas Doradas</strong>
+      <p class="pago-destacado">💰 Llave Bre-B: ${escapeHtml(pago.llave)}</p>
+      <p class="pago-destacado">💰 Bancolombia ahorros: ${escapeHtml(pago.cuentaBancolombia)}</p>
+      <p>A nombre de: ${escapeHtml(pago.titular)}</p>
+      <p>📲 WhatsApp: <a href="https://wa.me/${wa}" target="_blank" rel="noopener">${escapeHtml(waDisplay)}</a></p>
+      <p>Cuando pagues, envía el comprobante por WhatsApp ✅</p>
+    `;
+  }
+
+  function renderMediosPagoEnPagina() {
+    const html = htmlMediosPago();
+    const footer = $('footer-pago');
+    if (footer) footer.innerHTML = html;
+    const formPago = $('form-pago');
+    if (formPago) formPago.innerHTML = html;
+  }
+
+  function buildWhatsAppReservaUrl(nombre, telefono, pachas, total) {
+    const msg =
+      `Hola, soy ${nombre}. Confirmé mi reserva en *Rifas Doradas*.\n` +
+      `Tel: ${telefono}\n` +
+      `Pachas: ${pachas}\n` +
+      `Total: ${total}\n\n` +
+      `Adjunto comprobante de pago.`;
+    return `https://wa.me/${getWhatsAppWaMe()}?text=${encodeURIComponent(msg)}`;
+  }
+
   function formatMoney(n) {
     return Number(n || 0).toLocaleString('es-CO', {
       style: 'currency',
@@ -666,7 +715,7 @@
 
       const data = res.data || {};
       const nums = (data.boletas || [])
-        .map((b) => formatPair({ numero: b.numero, numeros: b.numeros || [b.numero] }))
+        .map((b) => `Pacha ${formatPair({ numero: b.numero, numeros: b.numeros || [b.numero] })}`)
         .join(', ');
 
       state.lastReserva = { ...payload, data, nums };
@@ -674,17 +723,22 @@
       $('exito-detalle').innerHTML = `
         <p><strong>Cliente:</strong> ${escapeHtml(payload.cliente.nombre)}</p>
         <p><strong>Teléfono:</strong> ${escapeHtml(payload.cliente.telefono)}</p>
-        <p><strong>Números:</strong> ${escapeHtml(nums || '—')}</p>
+        <p><strong>Pachas:</strong> ${escapeHtml(nums || '—')}</p>
         <p><strong>Total:</strong> ${formatMoney(data.monto_total || 0)}</p>
-        <p>Estado: pendiente de pago. Te contactaremos para confirmar.</p>
+        <p>Estado: pendiente de pago. Envíanos el comprobante por WhatsApp para confirmar.</p>
       `;
+
+      const exitoPago = $('exito-pago');
+      if (exitoPago) exitoPago.innerHTML = htmlMediosPago();
 
       const wa = $('btn-whatsapp');
       if (wa) {
-        const msg = encodeURIComponent(
-          `Hola, confirmé mi reserva en Rifas Doradas.\nNombre: ${payload.cliente.nombre}\nTel: ${payload.cliente.telefono}\nNúmeros: ${nums}\nTotal: ${formatMoney(data.monto_total || 0)}`
+        wa.href = buildWhatsAppReservaUrl(
+          payload.cliente.nombre,
+          payload.cliente.telefono,
+          nums,
+          formatMoney(data.monto_total || 0)
         );
-        wa.href = `https://wa.me/?text=${msg}`;
       }
 
       showPaso('exito');
@@ -755,6 +809,7 @@
   });
 
   // Prefer local hero if stock URL fails — try nmax after load
+  renderMediosPagoEnPagina();
   showPaso('catalogo');
   cargarRifas();
 })();
