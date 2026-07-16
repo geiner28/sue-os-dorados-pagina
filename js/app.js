@@ -58,12 +58,27 @@
   }
 
   async function isWompiReady() {
-    if (CONFIG.WOMPI_ENABLED === false) return false;
+    if (CONFIG.WOMPI_ENABLED === false) {
+      return { enabled: false, reason: 'deshabilitado en config.js' };
+    }
     try {
       const res = await api('/ventas-online/pagos/wompi/status');
-      return Boolean(res?.data?.enabled);
-    } catch {
-      return false;
+      const data = res?.data || {};
+      return {
+        enabled: Boolean(data.enabled),
+        missing: data.missing || [],
+        env: data.env,
+        reason: data.enabled
+          ? null
+          : (data.missing || []).length
+            ? `Faltan variables: ${(data.missing || []).join(', ')}`
+            : 'Wompi no configurado en el servidor',
+      };
+    } catch (err) {
+      return {
+        enabled: false,
+        reason: err.message || 'No se pudo consultar estado Wompi',
+      };
     }
   }
 
@@ -73,17 +88,25 @@
     const hint = $('wompi-pay-hint');
     if (!btn || !box) return;
 
-    const ready = await isWompiReady();
-    if (!ready || !reservaToken) {
-      box.classList.add('hidden');
+    box.classList.remove('hidden');
+    const status = await isWompiReady();
+
+    if (!status.enabled || !reservaToken) {
       btn.disabled = true;
+      btn.textContent = 'Pagar con Wompi (no disponible)';
+      if (hint) {
+        hint.textContent =
+          status.reason ||
+          'Wompi aún no está activo. Revisa las variables en Railway.';
+        hint.style.color = '#fca5a5';
+      }
       return;
     }
 
-    box.classList.remove('hidden');
     btn.disabled = false;
     btn.textContent = `Pagar ${formatMoney(montoTotal)} con Wompi`;
     if (hint) {
+      hint.style.color = '';
       hint.textContent =
         'Pago seguro en línea. Al confirmarse, tu boleta queda PAGADA y podrás descargarla.';
     }
@@ -100,7 +123,6 @@
         if (!checkout?.signature || !window.WompiCheckout) {
           throw new Error('No se pudo preparar el pago Wompi');
         }
-        // Guardar token para la pantalla de resultado
         try {
           sessionStorage.setItem(
             'sd_last_pago',
