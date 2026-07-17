@@ -174,7 +174,7 @@
       boleta: String(numero),
       origen: 'qr',
     });
-    window.location.replace(`./index.html?${params.toString()}#reservar`);
+    window.location.replace(`/?${params.toString()}#reservar`);
     return true;
   }
 
