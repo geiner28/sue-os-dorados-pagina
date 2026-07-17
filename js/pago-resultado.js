@@ -5,11 +5,9 @@
 
   const params = new URLSearchParams(location.search);
   let token = params.get('token') || '';
-  // Wompi redirect: ?id=<transaction_id>  |  nosotros: ?reference=SD-...
   let reference = params.get('reference') || '';
   let transactionId = params.get('id') || params.get('transaction_id') || '';
 
-  // Si alguien confundió id con reference (legacy), detectar formato SD-
   if (!reference && transactionId && String(transactionId).startsWith('SD-')) {
     reference = transactionId;
     transactionId = '';
@@ -66,17 +64,53 @@
     return json.data;
   }
 
+  function confirmButtonHtml() {
+    return `<button type="button" class="btn-gold cut" id="btn-confirmar-pago" style="margin-top:1rem;min-height:48px;padding:0 1.25rem">
+      Confirmar pago ahora
+    </button>`;
+  }
+
+  function bindConfirmButton() {
+    const btn = document.getElementById('btn-confirmar-pago');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Confirmando…';
+      try {
+        const synced = await syncOnce();
+        if (synced?.reference && !reference) reference = synced.reference;
+        if (isApproved(synced)) {
+          renderApproved(synced);
+          return;
+        }
+        if (isRejected(synced)) {
+          renderDeclined(synced, 'Pago no aprobado en Wompi');
+          return;
+        }
+        renderPending(
+          synced,
+          `Estado en Wompi: ${synced?.status || 'PENDING'}. Si ya te cobró, espera unos segundos y vuelve a confirmar.`
+        );
+      } catch (err) {
+        renderPending(null, err.message || 'No se pudo confirmar aún');
+      }
+    });
+  }
+
   function renderPending(info, extraMsg) {
-    if (leadEl) leadEl.textContent = 'Tu pago está en proceso. Esto puede tomar unos segundos.';
-    if (statusEl) {
-      statusEl.className = 'status-box';
-      statusEl.innerHTML = `
-        <strong style="display:block;margin-bottom:0.5rem;color:#f3c45d">Confirmando pago…</strong>
-        ${escapeHtml(extraMsg || 'Estamos verificando con Wompi.')}<br/>
-        ${reference ? `<span style="font-size:0.8rem;opacity:0.7">Ref: ${escapeHtml(reference)}</span>` : ''}
-        ${transactionId ? `<div style="font-size:0.75rem;opacity:0.55;margin-top:0.35rem">Tx: ${escapeHtml(transactionId)}</div>` : ''}
-        ${info?.amount != null || info?.monto_total != null ? `<div style="margin-top:0.75rem">${money(info.amount ?? info.monto_total)}</div>` : ''}
+    if (leadEl) leadEl.textContent = 'Estamos confirmando tu pago…';
+    if (cardEl) {
+      cardEl.innerHTML = `
+        <div class="status-box" id="pago-status">
+          <strong style="display:block;margin-bottom:0.5rem;color:#f3c45d">Pendiente de confirmación</strong>
+          ${escapeHtml(extraMsg || 'Buscando el pago aprobado en Wompi…')}<br/>
+          ${reference ? `<div style="font-size:0.8rem;opacity:0.7;margin-top:0.5rem">Ref: ${escapeHtml(reference)}</div>` : ''}
+          ${transactionId ? `<div style="font-size:0.75rem;opacity:0.55;margin-top:0.25rem">Tx: ${escapeHtml(transactionId)}</div>` : ''}
+          ${info?.amount != null || info?.monto_total != null ? `<div style="margin-top:0.75rem">${money(info.amount ?? info.monto_total)}</div>` : ''}
+          ${confirmButtonHtml()}
+        </div>
       `;
+      bindConfirmButton();
     }
   }
 
@@ -108,7 +142,7 @@
       cardEl.innerHTML = `
         <div class="status-box is-error">
           <strong style="display:block;margin-bottom:0.5rem">${escapeHtml(label || 'Pago no aprobado')}</strong>
-          Puedes intentar de nuevo o pagar por transferencia y enviar el comprobante por WhatsApp.
+          En Sandbox usa Nequi <code>3991111111</code> o tarjeta <code>4242…4242</code>.
           <div style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:0.6rem;justify-content:center">
             <a class="btn-gold cut" href="./index.html#reservar" style="display:inline-flex;min-height:44px;align-items:center;padding:0 1rem;text-decoration:none">Volver a participar</a>
             <a class="btn-ghost cut" href="./mis-boletas.html" style="display:inline-flex;min-height:44px;align-items:center;padding:0 1rem;text-decoration:none">Mis boletas</a>
@@ -145,16 +179,6 @@
     });
   }
 
-  async function pollEstado() {
-    if (token) {
-      return api(`/ventas-online/reservas/${encodeURIComponent(token)}/estado`);
-    }
-    if (reference) {
-      return api(`/ventas-online/pagos/${encodeURIComponent(reference)}?refresh=1`);
-    }
-    return null;
-  }
-
   async function run() {
     if (!token && !reference && !transactionId) {
       renderDeclined(null, 'No encontramos la referencia del pago');
@@ -163,7 +187,6 @@
 
     renderPending(null, 'Sincronizando con Wompi…');
 
-    // 1) Intentar sincronizar ya (respaldo del webhook)
     try {
       const synced = await syncOnce();
       if (synced?.reference && !reference) reference = synced.reference;
@@ -175,52 +198,36 @@
         renderDeclined(synced, 'Pago no aprobado');
         return;
       }
+      renderPending(
+        synced,
+        `Wompi aún reporta: ${synced?.status || 'PENDING'}. Si ya pagaste con éxito, pulsa «Confirmar pago ahora».`
+      );
     } catch (err) {
-      if (err.status === 429) {
-        renderPending(null, 'Esperando… (límite de consultas). Reintentando…');
-      } else {
-        renderPending(null, err.message || 'Aún confirmando…');
-      }
+      renderPending(null, err.message || 'No se pudo sincronizar todavía');
     }
 
-    // 2) Polling suave
     let attempts = 0;
-    const maxAttempts = 24; // ~2 min a 5s
-    while (attempts < maxAttempts) {
+    while (attempts < 18) {
       attempts += 1;
       await new Promise((r) => setTimeout(r, 5000));
       try {
-        // Cada 3 intentos vuelve a sincronizar
-        if (attempts % 3 === 0 && (reference || transactionId || token)) {
-          const synced = await syncOnce();
-          if (synced?.reference && !reference) reference = synced.reference;
-          if (isApproved(synced)) {
-            renderApproved(synced);
-            return;
-          }
-          if (isRejected(synced)) {
-            renderDeclined(synced, 'Pago no aprobado');
-            return;
-          }
-        }
-
-        const info = await pollEstado();
-        if (isApproved(info)) {
-          renderApproved({
-            ...info,
-            amount: info.amount ?? info.monto_total,
-            estado_venta: info.estado_venta || info.estado,
-          });
+        const synced = await syncOnce();
+        if (synced?.reference && !reference) reference = synced.reference;
+        if (isApproved(synced)) {
+          renderApproved(synced);
           return;
         }
-        if (isRejected(info)) {
-          renderDeclined(info, 'Pago no aprobado');
+        if (isRejected(synced)) {
+          renderDeclined(synced, 'Pago no aprobado');
           return;
         }
-        renderPending(info);
+        renderPending(
+          synced,
+          `Estado: ${synced?.status || 'PENDING'}. Intento ${attempts}/18`
+        );
       } catch (err) {
         if (err.status === 429) {
-          renderPending(null, 'Esperando para no saturar…');
+          renderPending(null, 'Esperando para no saturar consultas…');
           await new Promise((r) => setTimeout(r, 10000));
         } else {
           renderPending(null, err.message || 'Reintentando…');
@@ -230,7 +237,7 @@
 
     if (leadEl) {
       leadEl.textContent =
-        'Aún no llega la confirmación automática. Si ya pagaste, entra a Mis boletas o contáctanos por WhatsApp con tu comprobante.';
+        'No llegó la confirmación automática. Si Wompi mostró pago exitoso, pulsa «Confirmar pago ahora» o escribe por WhatsApp con la referencia.';
     }
   }
 
