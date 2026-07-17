@@ -860,8 +860,8 @@
       }
 
       const misBoletas = $('btn-ir-mis-boletas');
-      if (misBoletas && payload.cliente.identificacion) {
-        misBoletas.href = `./mis-boletas.html?cedula=${encodeURIComponent(payload.cliente.identificacion)}`;
+      if (misBoletas && reservaTokenFinal) {
+        misBoletas.href = `./mis-boletas.html?token=${encodeURIComponent(reservaTokenFinal)}`;
       }
 
       showPaso('exito');

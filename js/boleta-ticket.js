@@ -132,6 +132,23 @@
     const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
     if (!blob) throw new Error('No se pudo generar la imagen');
     const name = fileName.endsWith('.png') ? fileName : `${fileName}.png`;
+
+    // Safari en iPhone/iPad no siempre respeta el atributo download para blobs.
+    // La hoja nativa permite guardar la imagen en Fotos o Archivos.
+    const isAppleMobile =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isAppleMobile && navigator.share && global.File) {
+      const file = new File([blob], name, { type: 'image/png' });
+      if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Boleta Sueños Dorados',
+        });
+        return;
+      }
+    }
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

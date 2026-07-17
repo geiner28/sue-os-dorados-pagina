@@ -32,6 +32,10 @@
     return q || '';
   }
 
+  function getReservaToken() {
+    return new URLSearchParams(location.search).get('token') || '';
+  }
+
   async function fetchBoletas(identificacion) {
     const res = await fetch(
       `${API_URL}/public/cliente/${encodeURIComponent(identificacion)}/boletas`,
@@ -45,6 +49,23 @@
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.success) {
       throw new Error(json.message || 'No encontramos boletas para esa cédula.');
+    }
+    return json.data;
+  }
+
+  async function fetchBoletasReserva(token) {
+    const res = await fetch(
+      `${API_URL}/ventas-online/reservas/${encodeURIComponent(token)}/boletas`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY,
+        },
+      }
+    );
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || 'No pudimos cargar las boletas de esta compra.');
     }
     return json.data;
   }
@@ -71,7 +92,7 @@
           CC ${escapeHtml(cliente.identificacion)} · ${total_boletas || 0} pacha(s)
         </div>
       </div>
-      <button type="button" class="btn-gold cut" id="btn-descargar-todas">Descargar todas</button>
+      <button type="button" class="btn-gold cut" id="btn-descargar-todas">Guardar todas</button>
     `;
 
     const pagadas = [];
@@ -99,7 +120,7 @@
                   ${
                     puedeDescargar
                       ? `<button type="button" class="btn-gold cut btn-dl" data-id="${b.id}" data-num="${b.numero}">
-                          Descargar PNG
+                          Guardar imagen
                         </button>`
                       : `<button type="button" class="btn-ghost cut" disabled title="Disponible al pagar">
                           ${estado === 'RESERVADA' || estado === 'ABONADA' ? 'Pendiente de pago' : escapeHtml(estado || 'Sin descarga')}
@@ -164,7 +185,7 @@
           toast(err.message || 'Error al descargar', 'error');
         } finally {
           btn.disabled = false;
-          btn.textContent = 'Descargar PNG';
+          btn.textContent = 'Guardar imagen';
         }
       });
     });
@@ -258,13 +279,33 @@
     }
   }
 
+  async function consultarReserva(token) {
+    $('form-cedula')?.classList.add('hidden');
+    $('resultado')?.classList.add('hidden');
+    if ($('page-kicker')) $('page-kicker').textContent = 'Pago confirmado';
+    if ($('page-title')) $('page-title').textContent = 'Tus boletas están listas';
+    if ($('page-description')) {
+      $('page-description').textContent =
+        'Ya aparecen pagadas. Guárdalas como imagen en tu dispositivo.';
+    }
+    setStatus('Preparando tus boletas pagadas…');
+    try {
+      render(await fetchBoletasReserva(token));
+    } catch (err) {
+      setStatus(err.message || 'Error al cargar tus boletas', true);
+    }
+  }
+
   $('form-cedula')?.addEventListener('submit', (e) => {
     e.preventDefault();
     consultar($('input-cedula')?.value);
   });
 
+  const reservaToken = getReservaToken();
   const initial = getCedulaFromPath();
-  if (initial) {
+  if (reservaToken) {
+    consultarReserva(reservaToken);
+  } else if (initial) {
     const input = $('input-cedula');
     if (input) input.value = initial;
     consultar(initial);

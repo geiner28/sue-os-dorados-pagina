@@ -115,7 +115,14 @@
   }
 
   function renderApproved(info) {
-    if (leadEl) leadEl.textContent = '¡Pago confirmado! Ya puedes descargar tus boletas.';
+    const boletasUrl = token
+      ? `./mis-boletas.html?token=${encodeURIComponent(token)}`
+      : './mis-boletas.html';
+    if (leadEl) {
+      leadEl.textContent = token
+        ? '¡Pago confirmado! Estamos preparando tus boletas pagadas…'
+        : '¡Pago confirmado! Ya puedes descargar tus boletas.';
+    }
     if (cardEl) {
       cardEl.innerHTML = `
         <div style="text-align:center">
@@ -125,14 +132,19 @@
           </div>
           <p class="verify-nums" style="font-size:1.4rem;margin:0.75rem 0">${money(info.amount ?? info.monto_total)}</p>
           <p style="color:#a8a29a;margin:0 0 1rem">Estado: ${escapeHtml(info.estado_venta || info.estado || 'PAGADA')}</p>
-          <a class="btn-gold cut" href="./mis-boletas.html" style="display:inline-flex;min-height:48px;align-items:center;justify-content:center;padding:0 1.25rem;text-decoration:none">
-            Descargar mis boletas
+          <a class="btn-gold cut" href="${boletasUrl}" style="display:inline-flex;min-height:48px;align-items:center;justify-content:center;padding:0 1.25rem;text-decoration:none">
+            Ver y guardar mis boletas
           </a>
           <p style="margin-top:1rem;font-size:0.8rem;color:#78716c">
             ${reference ? `Referencia: ${escapeHtml(reference)}` : ''}
           </p>
         </div>
       `;
+    }
+    if (token) {
+      window.setTimeout(() => {
+        window.location.replace(boletasUrl);
+      }, 1200);
     }
   }
 
