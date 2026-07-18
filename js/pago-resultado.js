@@ -219,7 +219,8 @@
     }
 
     let attempts = 0;
-    while (attempts < 18) {
+    const maxAttempts = 36; // ~3 min con intervalo de 5s
+    while (attempts < maxAttempts) {
       attempts += 1;
       await new Promise((r) => setTimeout(r, 5000));
       try {
@@ -235,7 +236,7 @@
         }
         renderPending(
           synced,
-          `Estado: ${synced?.status || 'PENDING'}. Intento ${attempts}/18`
+          `Estado: ${synced?.status || 'PENDING'}. Intento ${attempts}/${maxAttempts}`
         );
       } catch (err) {
         if (err.status === 429) {
@@ -252,6 +253,17 @@
         'No llegó la confirmación automática. Si Wompi mostró pago exitoso, pulsa «Confirmar pago ahora» o escribe por WhatsApp con la referencia.';
     }
   }
+
+  // Si el usuario vuelve a la pestaña, reintentar sync de inmediato
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && (reference || token || transactionId)) {
+      syncOnce()
+        .then((synced) => {
+          if (isApproved(synced)) renderApproved(synced);
+        })
+        .catch(() => {});
+    }
+  });
 
   run();
 })();
