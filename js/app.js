@@ -383,7 +383,6 @@
               <li><span>Precio boleta</span><strong>${formatMoney(r.precio_boleta)}</strong></li>
               <li><span>Premio mayor</span><strong>26 sep · NMAX 2027</strong></li>
               <li><span>Anticipado</span><strong>5 sep · $5.000.000</strong></li>
-              <li><span>Disponibles</span><strong>${Number(r.boletas_disponibles || 0).toLocaleString('es-CO')}</strong></li>
             </ul>
             <button type="button" class="btn-gold" data-rifa="${r.id}">Elegir mis números</button>
           </div>
