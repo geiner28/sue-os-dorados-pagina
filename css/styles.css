@@ -1667,6 +1667,79 @@ body.is-reservar .site-header {
   scrollbar-color: var(--gold) transparent;
 }
 
+/* Grilla fija: 50 números (5×10 móvil, 10×5 desktop) */
+body.grilla-compact .reserva {
+  padding-top: clamp(4.5rem, 8vw, 5.5rem);
+  padding-bottom: 5rem;
+}
+
+body.grilla-compact .watermarks-silueta {
+  display: none;
+}
+
+.numeros-compact-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+.numeros-compact-bar .link-back {
+  flex-shrink: 0;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.numeros-compact-bar input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--line);
+  background: #0d0b08;
+  color: var(--ink);
+}
+
+.compra-panel-compact {
+  margin-bottom: 0.65rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.compra-actions-full {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.grilla-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.grilla-hint.hidden {
+  display: none;
+}
+
+.num-grid-sample {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  max-height: none;
+  overflow: visible;
+  gap: 0.45rem;
+  margin-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+}
+
+.num-grid-sample.num-grid-search {
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  max-height: min(50vh, 480px);
+  overflow: auto;
+}
+
+@media (min-width: 640px) {
+  .num-grid-sample:not(.num-grid-search) {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}
+
 .num-grid-dual {
   grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
 }
@@ -1739,7 +1812,7 @@ body.is-reservar .site-header {
 /* Mobile: barra Reservar siempre visible abajo */
 @media (max-width: 768px) {
   #paso-numeros:not(.hidden) {
-    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   #paso-numeros:not(.hidden) .sticky-bar {
@@ -1749,24 +1822,45 @@ body.is-reservar .site-header {
     bottom: 0;
     z-index: 80;
     margin: 0;
-    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
-    gap: 0.65rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+    padding: 0.65rem 0.85rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid rgba(185, 133, 13, 0.45);
-    background: rgba(5, 5, 5, 0.97);
+    background: rgba(5, 5, 5, 0.98);
     box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.45);
   }
 
-  #paso-numeros:not(.hidden) .sticky-bar .btn-gold {
-    flex: 0 0 auto;
-    min-width: 7.5rem;
+  #paso-numeros:not(.hidden) .sticky-info {
+    width: 100%;
+    gap: 0.55rem;
+  }
+
+  #paso-numeros:not(.hidden) .sticky-logo {
+    display: none;
+  }
+
+  #paso-numeros:not(.hidden) .sticky-info > div {
+    min-width: 0;
+    flex: 1;
+  }
+
+  #paso-numeros:not(.hidden) .sticky-bar .price-pill {
+    display: inline-block;
+    font-size: 0.95rem;
   }
 
   #paso-numeros:not(.hidden) .sticky-muted {
-    max-width: 42vw;
-    font-size: 0.78rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: none;
+  }
+
+  #paso-numeros:not(.hidden) .sticky-bar .btn-gold {
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    flex: none;
+    font-size: 0.88rem;
+    letter-spacing: 0.12em;
   }
 }
 
@@ -2138,7 +2232,7 @@ body.is-reservar .site-header {
   position: fixed;
   right: max(1rem, env(safe-area-inset-right));
   bottom: max(1rem, env(safe-area-inset-bottom));
-  z-index: 90;
+  z-index: 70;
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -2192,6 +2286,17 @@ body.is-reservar .site-header {
     justify-content: center;
     border-radius: 50%;
   }
+}
+
+/* En flujo de reserva/compra no tapar la barra inferior */
+body.is-reservar .whatsapp-float {
+  display: none !important;
+}
+
+/* Inicio: WhatsApp visible y por encima del contenido */
+body:not(.is-reservar) .whatsapp-float {
+  display: inline-flex;
+  z-index: 95;
 }
 
 @media (min-width: 768px) {

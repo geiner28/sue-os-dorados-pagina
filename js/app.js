@@ -4,7 +4,7 @@
   const API_KEY = CONFIG.API_KEY || '';
   const BLOQUEO_MINUTOS = CONFIG.BLOQUEO_MINUTOS || 15;
   const MAX_BOLETAS = CONFIG.MAX_BOLETAS || 10;
-  const GRID_SAMPLE_LIMIT = 1000;
+  const GRID_SAMPLE_LIMIT = 50;
   const STOCK = CONFIG.STOCK || {};
 
   const state = {
@@ -96,7 +96,7 @@
 
     if (!status.enabled || !reservaToken) {
       btn.disabled = true;
-      btn.textContent = 'Pagar con Wompi (no disponible)';
+      btn.textContent = 'Pagar ahora mismo (no disponible)';
       if (hint) {
         hint.textContent =
           status.reason ||
@@ -107,7 +107,7 @@
     }
 
     btn.disabled = false;
-    btn.textContent = `Pagar ${formatMoney(montoTotal)} con Wompi`;
+    btn.textContent = `Pagar ${formatMoney(montoTotal)} ahora mismo`;
     if (hint) {
       hint.style.color = '';
       hint.textContent =
@@ -152,7 +152,7 @@
       } catch (err) {
         toast(err.message || 'Error al iniciar pago', 'error');
         btn.disabled = false;
-        btn.textContent = `Pagar ${formatMoney(montoTotal)} con Wompi`;
+        btn.textContent = `Pagar ${formatMoney(montoTotal)} ahora mismo`;
       }
     };
   }
@@ -259,10 +259,9 @@
   }
 
   function createVisitSample() {
-    const picked = shuffle(state.boletas)
-      .slice(0, GRID_SAMPLE_LIMIT)
-      .map((b) => b.id);
-    state.gridSampleIds = groupSampleIds(picked);
+    const picked = shuffle(state.boletas).slice(0, GRID_SAMPLE_LIMIT);
+    picked.sort((a, b) => Number(a.numero) - Number(b.numero));
+    state.gridSampleIds = picked.map((b) => b.id);
   }
 
   function refreshVisitSample() {
@@ -270,12 +269,12 @@
     const kept = state.gridSampleIds.filter((id) => availableIds.has(id));
     const keptSet = new Set(kept);
     const missing = Math.max(0, Math.min(GRID_SAMPLE_LIMIT, state.boletas.length) - kept.length);
-    const replacements = shuffle(
-      state.boletas.filter((b) => !keptSet.has(b.id))
-    )
+    const replacements = shuffle(state.boletas.filter((b) => !keptSet.has(b.id)))
       .slice(0, missing)
-      .map((b) => b.id);
-    state.gridSampleIds = groupSampleIds([...kept, ...replacements]);
+      .sort((a, b) => Number(a.numero) - Number(b.numero));
+    const merged = [...kept.map((id) => state.boletas.find((b) => b.id === id)).filter(Boolean), ...replacements];
+    merged.sort((a, b) => Number(a.numero) - Number(b.numero));
+    state.gridSampleIds = merged.map((b) => b.id);
   }
 
   function formatPachasLabel(boletas) {
@@ -331,8 +330,52 @@
       const el = $(id);
       if (el) el.classList.toggle('hidden', key !== paso);
     });
+    document.body.classList.toggle('grilla-compact', paso === 'numeros');
     if (paso === 'exito' && typeof window.celebrateSuccess === 'function') {
       window.celebrateSuccess();
+    }
+  }
+
+  function pickActiveRifaId() {
+    if (!state.rifas?.length) return null;
+    // /ventas-online/rifas ya devuelve solo activas; si hay varias, prioriza NMAX
+    const prefer = (r) => {
+      const hay = `${r.nombre || ''} ${r.premio_principal || ''} ${r.descripcion || ''}`.toLowerCase();
+      return hay.includes('nmax') ? 0 : 1;
+    };
+    const list = [...state.rifas].sort((a, b) => prefer(a) - prefer(b));
+    return list[0]?.id || null;
+  }
+
+  let rifasLoadPromise = null;
+
+  function ensureRifasLoaded() {
+    if (!rifasLoadPromise) rifasLoadPromise = cargarRifas();
+    return rifasLoadPromise;
+  }
+
+  /** Salta el catálogo y abre directo la grilla de números de la rifa activa. */
+  async function irDirectoANumeros() {
+    if (state.paso === 'numeros' && state.rifa) return;
+    if (state.paso === 'formulario' || state.paso === 'exito') return;
+    if (state._irDirectoLock) return;
+    state._irDirectoLock = true;
+
+    showPaso('numeros');
+    const list = $('numeros-grid');
+    if (list) list.innerHTML = '<div class="loading">Cargando números disponibles…</div>';
+
+    try {
+      await ensureRifasLoaded();
+      const id = pickActiveRifaId();
+      if (id) {
+        await seleccionarRifa(id);
+        return;
+      }
+      showPaso('catalogo');
+      toast('No hay rifas activas en este momento.', 'error');
+    } finally {
+      state._irDirectoLock = false;
     }
   }
 
@@ -492,8 +535,7 @@
       })
       .filter(Boolean);
 
-    // La muestra conserva grupos 0–9 y orden aleatorio interno.
-    // Los resultados de búsqueda se ordenan para que sean fáciles de revisar.
+    // Sin búsqueda: muestra la muestra fija (50). Con búsqueda: todos los disponibles.
     return term ? cells.sort((a, b) => a.numero - b.numero) : cells;
   }
 
@@ -503,25 +545,23 @@
 
     const term = (filter || '').replace(/^#/, '').trim();
     const cells = buildCells(term);
+    const isSearch = Boolean(term);
 
     if (!cells.length) {
-      grid.innerHTML = '<div class="empty">No hay números para mostrar.</div>';
+      grid.innerHTML = `<div class="empty">${isSearch ? 'No encontramos ese número disponible.' : 'No hay números para mostrar.'}</div>`;
+      grid.classList.toggle('num-grid-search', isSearch);
       return;
     }
 
     grid.classList.remove('num-grid-dual');
+    grid.classList.toggle('num-grid-search', isSearch);
+    const hint = $('grilla-hint');
+    if (hint) hint.classList.toggle('hidden', isSearch);
 
-    let lastSeries = null;
     grid.innerHTML = cells
       .map((c) => {
         const isSelected = state.selectedIds.has(c.boletaId);
-        const series = padNum(c.numero).charAt(0);
-        const heading =
-          !term && series !== lastSeries
-            ? `<div class="num-series">Serie ${series}</div>`
-            : '';
-        lastSeries = series;
-        return `${heading}<button type="button" class="num-cell ${isSelected ? 'selected' : ''}"
+        return `<button type="button" class="num-cell ${isSelected ? 'selected' : ''}"
           data-boleta="${c.boletaId}" data-numero="${c.numero}"
           title="Seleccionar #${escapeHtml(c.label)}">${escapeHtml(c.label)}</button>`;
       })
@@ -1148,13 +1188,18 @@
     });
   }
 
-  function openReservar({ push = true } = {}) {
+  async function openReservar({ push = true, autoNumeros = true } = {}) {
     document.body.classList.add('is-reservar');
     if (viewReservar) viewReservar.hidden = false;
     window.scrollTo(0, 0);
     setNavActive('reservar');
     if (push && location.hash !== '#reservar') {
       history.pushState({ view: 'reservar' }, '', '#reservar');
+    }
+    if (autoNumeros) {
+      await irDirectoANumeros();
+    } else {
+      showPaso('catalogo');
     }
   }
 
@@ -1183,7 +1228,7 @@
   function applyViewFromHash() {
     const hash = location.hash || '#inicio';
     if (hash === '#reservar' || hash === '#reserva') {
-      openReservar({ push: false });
+      openReservar({ push: false, autoNumeros: true });
       return;
     }
     openLanding({ push: false, hash });
@@ -1194,9 +1239,10 @@
     if (!link) return;
     const view = link.getAttribute('data-view');
     const href = link.getAttribute('href') || '';
+    const autoNumeros = link.getAttribute('data-auto-numeros') !== '0';
     if (view === 'reservar') {
       e.preventDefault();
-      openReservar({ push: true });
+      openReservar({ push: true, autoNumeros });
       return;
     }
     if (view === 'landing') {
@@ -1209,8 +1255,9 @@
   window.addEventListener('popstate', () => applyViewFromHash());
   window.addEventListener('hashchange', () => applyViewFromHash());
 
-  async function iniciarCatalogo() {
-    await cargarRifas();
+  async function boot() {
+    renderMediosPagoEnPagina();
+    await ensureRifasLoaded();
 
     const params = new URLSearchParams(location.search);
     const rifaQr = params.get('rifa') || '';
@@ -1219,13 +1266,20 @@
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rifaQr);
 
     if (uuidValido && numeroQr != null && /^\d+$/.test(numeroQr)) {
-      openReservar({ push: false });
+      await openReservar({ push: false, autoNumeros: false });
       await seleccionarRifa(rifaQr, Number(numeroQr));
+      return;
     }
+
+    const hash = location.hash || '#inicio';
+    if (hash === '#reservar' || hash === '#reserva') {
+      await openReservar({ push: false, autoNumeros: true });
+      return;
+    }
+
+    showPaso('catalogo');
+    applyViewFromHash();
   }
 
-  renderMediosPagoEnPagina();
-  showPaso('catalogo');
-  applyViewFromHash();
-  iniciarCatalogo();
+  boot();
 })();

@@ -14,8 +14,8 @@
       href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./css/styles.css?v=20260721a" />
-    <link rel="stylesheet" href="./css/hero.css" />
+    <link rel="stylesheet" href="./css/styles.css?v=20260730d" />
+    <link rel="stylesheet" href="./css/hero.css?v=20260730d" />
   </head>
   <body>
     <!-- CABECERA -->
@@ -104,10 +104,6 @@
             <span>0KM</span>
           </div>
           <p class="hero-slogan">Tu oportunidad de <strong>ganar</strong></p>
-          <a href="#reservar" data-view="reservar" class="hero-button">
-            Participa ya
-            <span class="button-arrow">→</span>
-          </a>
         </div>
 
         <div class="hero-product">
@@ -117,6 +113,11 @@
             class="hero-bike"
           />
         </div>
+
+        <a href="#reservar" data-view="reservar" data-auto-numeros="1" class="hero-button">
+          Comprar números ahora mismo
+          <span class="button-arrow">→</span>
+        </a>
       </div>
 
       <div class="hero-index" aria-hidden="true">
@@ -271,7 +272,7 @@
             <strong>26 de septiembre</strong>
           </div>
           <div class="rifa-detalle-item rifa-detalle-cta">
-            <a class="btn-gold cut" href="#reservar" data-view="reservar">Reservar boleta</a>
+            <a class="btn-gold cut" href="#reservar" data-view="reservar" data-auto-numeros="1">Comprar números ahora mismo</a>
           </div>
         </div>
       </div>
@@ -510,7 +511,7 @@
           <span class="reveal-line">RESERVA</span>
           <span class="reveal-line gold">TU BOLETA</span>
         </h2>
-        <a class="btn-gold cut reveal" href="#reservar" data-view="reservar">Participar ahora</a>
+        <a class="btn-gold cut reveal" href="#reservar" data-view="reservar" data-auto-numeros="1">Comprar números ahora mismo</a>
       </div>
     </section>
 
@@ -520,7 +521,7 @@
     <div id="view-reservar" class="page-view page-view-reservar" hidden>
     <section id="reserva" class="reserva" aria-label="Reservar boleta">
       <img class="watermarks-silueta" src="./nmax-silueta.png" alt="" aria-hidden="true" />
-      <div class="reserva-head">
+      <div class="reserva-head reserva-head-legacy" hidden aria-hidden="true">
         <button type="button" class="link-back reserva-back-home" id="btn-volver-inicio" data-view="landing">
           ← Volver al inicio
         </button>
@@ -544,25 +545,19 @@
         </div>
 
         <div id="paso-numeros" class="paso hidden">
-          <button type="button" class="link-back" id="btn-volver-catalogo">← Volver</button>
-          <div class="rifa-header">
-            <div class="rifa-header-brand">
-              <img class="rifa-logo" src="./logo.png" alt="" />
-              <div>
-                <h3 id="rifa-titulo">—</h3>
-                <p id="rifa-desc"></p>
-              </div>
-            </div>
-            <div class="price-pill" id="rifa-precio">₡0</div>
+          <div class="numeros-compact-bar">
+            <button type="button" class="link-back" id="btn-volver-inicio-grid" data-view="landing">← Inicio</button>
+            <input
+              id="buscar-numero"
+              type="search"
+              placeholder="Buscar número en toda la rifa…"
+              autocomplete="off"
+            />
           </div>
 
-          <div class="compra-panel">
+          <div class="compra-panel compra-panel-compact">
             <div class="compra-panel-head">
-              <div>
-                <p class="meta-line" style="margin-bottom: 0.2rem">Tu selección</p>
-                <p class="compra-hint">Elige un número y descubre el segundo número que te regalamos · Toca × para quitar</p>
-              </div>
-              <div class="compra-actions">
+              <div class="compra-actions compra-actions-full">
                 <button type="button" class="btn-ghost cut btn-sm" id="btn-al-azar">Al azar</button>
                 <div class="selection-summary">
                   <span>Números</span>
@@ -578,23 +573,18 @@
             <div id="regalo-notice" class="regalo-notice hidden" role="status" aria-live="polite"></div>
           </div>
 
-          <div class="toolbar">
-            <input
-              id="buscar-numero"
-              type="search"
-              placeholder="Buscar número… (ej. 1 o 0001)"
-              autocomplete="off"
-            />
-          </div>
+          <p class="grilla-hint" id="grilla-hint">50 números al azar · usa el buscador para cualquier disponible</p>
 
-          <div id="leyenda-doble" class="leyenda hidden">
-            <strong>Doble oportunidad:</strong> elige uno de los números disponibles.
-            Al seleccionarlo te mostraremos el otro número que recibes de regalo.
-            Mostramos una selección aleatoria de hasta 1.000 números por visita;
-            el buscador consulta todos los disponibles.
-          </div>
+          <div id="numeros-grid" class="num-grid num-grid-sample" role="listbox" aria-label="Números disponibles"></div>
 
-          <div id="numeros-grid" class="num-grid" role="listbox" aria-label="Números disponibles"></div>
+          <!-- Elementos ocultos (JS los sigue usando) -->
+          <button type="button" class="link-back hidden" id="btn-volver-catalogo" tabindex="-1" aria-hidden="true">← Volver</button>
+          <div class="rifa-header hidden" aria-hidden="true">
+            <h3 id="rifa-titulo">—</h3>
+            <p id="rifa-desc"></p>
+            <div class="price-pill" id="rifa-precio">₡0</div>
+          </div>
+          <div id="leyenda-doble" class="leyenda hidden" aria-hidden="true"></div>
 
           <div class="sticky-bar">
             <div class="sticky-info">
@@ -652,7 +642,7 @@
             <div class="exito-box" id="exito-detalle"></div>
             <div class="wompi-pay-box" id="exito-wompi">
               <button type="button" class="btn-gold cut" id="btn-pagar-wompi" disabled>
-                Pagar con Wompi
+                Pagar ahora mismo
               </button>
               <p class="wompi-pay-hint" id="wompi-pay-hint">
                 Pago seguro en línea. Al confirmar, descarga tu boleta pagada.
@@ -749,7 +739,7 @@
     <script src="./js/vendor/ScrollTrigger.min.js"></script>
     <script src="./js/config.js"></script>
     <script src="./js/wompi-checkout.js"></script>
-    <script src="./js/app.js?v=20260723a"></script>
+    <script src="./js/app.js?v=20260730f"></script>
     <script src="./js/hero.js"></script>
     <script src="./js/motion.js"></script>
   </body>
