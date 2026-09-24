@@ -4,7 +4,9 @@
   const API_KEY = CONFIG.API_KEY || '';
   const BLOQUEO_MINUTOS = CONFIG.BLOQUEO_MINUTOS || 15;
   const MAX_BOLETAS = CONFIG.MAX_BOLETAS || 10;
-  const GRID_SAMPLE_LIMIT = 50;
+  /** Máximo de boletas visibles en la web (muestra aleatoria, solo frontend). */
+  const ONLINE_MUESTRA_LIMIT = 500;
+  const GRID_SAMPLE_LIMIT = ONLINE_MUESTRA_LIMIT;
   const STOCK = CONFIG.STOCK || {};
 
   const state = {
@@ -12,6 +14,7 @@
     rifas: [],
     rifa: null,
     boletas: [],
+    totalDisponiblesCatalogo: 0,
     gridSampleIds: [],
     primaryNumberById: new Map(),
     selectedIds: new Set(),
@@ -246,6 +249,34 @@
     return copy;
   }
 
+  function mapBoletasFromApi(raw) {
+    return (raw || []).map((b) => ({
+      ...b,
+      numeros: Array.isArray(b.numeros) ? b.numeros.map(Number) : [Number(b.numero)],
+    }));
+  }
+
+  /** Reduce el catálogo a ONLINE_MUESTRA_LIMIT al azar; conserva boletas ya seleccionadas. */
+  function buildMuestraOnline(allBoletas, keepIds = new Set()) {
+    if (allBoletas.length <= ONLINE_MUESTRA_LIMIT) {
+      return [...allBoletas];
+    }
+    const mustKeep = allBoletas.filter((b) => keepIds.has(b.id));
+    const slots = Math.max(0, ONLINE_MUESTRA_LIMIT - mustKeep.length);
+    const pool = shuffle(allBoletas.filter((b) => !keepIds.has(b.id)));
+    return [...mustKeep, ...pool.slice(0, slots)];
+  }
+
+  function ensureBoletaEnMuestra(boleta) {
+    if (!boleta) return;
+    if (state.boletas.some((b) => b.id === boleta.id)) return;
+    const trimmed = state.boletas.slice(0, Math.max(0, ONLINE_MUESTRA_LIMIT - 1));
+    state.boletas = [boleta, ...trimmed.filter((b) => b.id !== boleta.id)];
+    if (state.boletas.length > ONLINE_MUESTRA_LIMIT) {
+      state.boletas = state.boletas.slice(0, ONLINE_MUESTRA_LIMIT);
+    }
+  }
+
   function groupSampleIds(ids) {
     const byId = new Map(state.boletas.map((b) => [b.id, b]));
     const groups = Array.from({ length: 10 }, () => []);
@@ -259,8 +290,7 @@
   }
 
   function createVisitSample() {
-    const picked = shuffle(state.boletas).slice(0, GRID_SAMPLE_LIMIT);
-    picked.sort((a, b) => Number(a.numero) - Number(b.numero));
+    const picked = [...state.boletas].sort((a, b) => Number(a.numero) - Number(b.numero));
     state.gridSampleIds = picked.map((b) => b.id);
   }
 
@@ -456,16 +486,22 @@
     try {
       const res = await api(`/ventas-online/rifas/${rifaId}/boletas`);
       state.rifa = res.data.rifa;
-      state.boletas = (res.data.boletas || []).map((b) => ({
-        ...b,
-        numeros: Array.isArray(b.numeros) ? b.numeros.map(Number) : [Number(b.numero)],
-      }));
+      const allCatalog = mapBoletasFromApi(res.data.boletas);
+      state.totalDisponiblesCatalogo = Number(res.data.total_disponibles) || allCatalog.length;
+      state.boletas = buildMuestraOnline(allCatalog);
       createVisitSample();
+
+      const totalReal = state.totalDisponiblesCatalogo;
+      const enGrilla = state.boletas.length;
+      const libresLabel =
+        totalReal > enGrilla
+          ? `${enGrilla} números para elegir ahora (${totalReal.toLocaleString('es-CO')} libres en total)`
+          : `${enGrilla.toLocaleString('es-CO')} números libres`;
 
       $('rifa-titulo').textContent = state.rifa.nombre;
       $('rifa-desc').textContent = state.rifa.doble_oportunidad
-        ? `Doble oportunidad (número elegido + número de regalo) · Mayor 26 sep · Anticipado 5 sep · ${state.boletas.length} boletas libres`
-        : `Sorteo ${formatDate(state.rifa.fecha_sorteo)} · ${state.boletas.length} números libres`;
+        ? `Doble oportunidad (número elegido + número de regalo) · Mayor 26 sep · Anticipado 5 sep · ${libresLabel}`
+        : `Sorteo ${formatDate(state.rifa.fecha_sorteo)} · ${libresLabel}`;
       $('rifa-precio').textContent = formatMoney(state.rifa.precio_boleta);
 
       const leyenda = $('leyenda-doble');
@@ -479,11 +515,14 @@
       // numeroDesdeQr=null → Number(null)=0; no tratar eso como QR
       if (numeroDesdeQr != null && numeroDesdeQr !== '' && Number.isInteger(Number(numeroDesdeQr))) {
         const numeroQr = Number(numeroDesdeQr);
-        const pachaQr = state.boletas.find((b) => {
+        const findByNum = (b) => {
           const nums = Array.isArray(b.numeros) ? b.numeros.map(Number) : [Number(b.numero)];
           return nums.includes(numeroQr);
-        });
+        };
+        let pachaQr = state.boletas.find(findByNum) || allCatalog.find(findByNum);
         if (pachaQr) {
+          ensureBoletaEnMuestra(pachaQr);
+          createVisitSample();
           state.primaryNumberById.set(pachaQr.id, numeroQr);
           rememberPrimaryNumber(pachaQr.id, numeroQr);
           state.selectedIds.add(pachaQr.id);
@@ -535,7 +574,7 @@
       })
       .filter(Boolean);
 
-    // Sin búsqueda: muestra la muestra fija (50). Con búsqueda: todos los disponibles.
+    // Sin búsqueda: muestra la muestra fija (hasta 500). Con búsqueda: solo dentro de la muestra cargada.
     return term ? cells.sort((a, b) => a.numero - b.numero) : cells;
   }
 
@@ -588,12 +627,11 @@
       try {
         const res = await api(`/ventas-online/rifas/${state.rifa.id}/boletas`);
         const prevSelected = new Set(state.selectedIds);
-        state.boletas = (res.data.boletas || []).map((b) => ({
-          ...b,
-          numeros: Array.isArray(b.numeros) ? b.numeros.map(Number) : [Number(b.numero)],
-        }));
+        const allCatalog = mapBoletasFromApi(res.data.boletas);
+        state.totalDisponiblesCatalogo = Number(res.data.total_disponibles) || allCatalog.length;
+        state.boletas = buildMuestraOnline(allCatalog, prevSelected);
         refreshVisitSample();
-        const stillAvailable = new Set(state.boletas.map((b) => b.id));
+        const stillAvailable = new Set(allCatalog.map((b) => b.id));
         let removed = false;
         for (const id of [...prevSelected]) {
           if (!stillAvailable.has(id)) {
